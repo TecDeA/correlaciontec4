@@ -2242,7 +2242,7 @@
             alumnoActualId = localStorage.getItem('alumno_actual_id') || null;
 
             // Migrar datos antiguos
-            const migracionNecesaria = migrarAlumnos();
+            let migracionNecesaria = migrarAlumnos();
 
             // Si no hay alumnos, crear uno por defecto
             if (alumnos.length === 0) {
@@ -6068,6 +6068,11 @@
                         console.log('[PWA] Service Worker registrado:', reg.scope);
                         // ===== Actualizar chip de versión dinámicamente =====
                         actualizarChipVersion();
+                        // Cuando un SW tome el control (incl. primera
+                        // activación tras el install), refrescar el chip.
+                        navigator.serviceWorker.addEventListener('controllerchange', function() {
+                            actualizarChipVersion();
+                        });
                         // Escuchar actualizaciones del SW
                         reg.addEventListener('updatefound', function() {
                             var newWorker = reg.installing;
@@ -6101,7 +6106,7 @@
          * Si no hay SW activo todavía (primera carga), reintenta con backoff.
          */
         function actualizarChipVersion(reintentos) {
-            reintentos = (typeof reintentos === 'number') ? reintentos : 6;
+            reintentos = (typeof reintentos === 'number') ? reintentos : 15;
             var chipText = document.getElementById('appVersionChipText');
             if (!chipText) return; // el chip no está en el DOM (p.ej. pantalla de auth)
 
