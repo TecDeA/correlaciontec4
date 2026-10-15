@@ -1320,7 +1320,21 @@
             <button id="manageUsersBtn" class="btn btn-secondary" type="button" style="display:none; padding:5px 12px; font-size:0.78rem;">👥 Usuarios</button>
             <button id="logoutBtn" class="btn btn-secondary" type="button" style="padding:5px 12px; font-size:0.78rem;">Cerrar sesión</button>
         </div>
-        <h1>🧩 Matriz de correlación TEC4 ↔ TYD / CYR</h1>
+        <h1 style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span>🧩 Matriz de correlación TEC4 ↔ TYD / CYR</span>
+            <span id="appVersionChip" title="Versión de la aplicación"
+                style="display:inline-flex; align-items:center; gap:5px;
+                       padding:3px 10px; font-size:0.7rem; font-weight:600;
+                       color:#2563eb; background:#dbeafe; border:1px solid #93c5fd;
+                       border-radius:999px; line-height:1; letter-spacing:0.02em;
+                       font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+                       vertical-align:middle; user-select:none;">
+                <span style="display:inline-block; width:7px; height:7px;
+                             border-radius:50%; background:#2563eb;
+                             box-shadow:0 0 0 2px rgba(37,99,235,0.25);"></span>
+                <span id="appVersionChipText">v…</span>
+            </span>
+        </h1>
         <p style="margin:0 0 4px;color:#64748b;font-size:0.88rem;">
             Visualización y cálculo de la correlación entre criterios de evaluación de Tecnología (4.º ESO) y las materias TYD / CYR.
         </p>
@@ -6052,6 +6066,8 @@
                 navigator.serviceWorker.register('sw.js')
                     .then(function(reg) {
                         console.log('[PWA] Service Worker registrado:', reg.scope);
+                        // ===== Actualizar chip de versión dinámicamente =====
+                        actualizarChipVersion();
                         // Escuchar actualizaciones del SW
                         reg.addEventListener('updatefound', function() {
                             var newWorker = reg.installing;
@@ -6060,13 +6076,68 @@
                                     // Hay una nueva versión disponible
                                     console.log('[PWA] Nueva versión disponible. Recarga para actualizar.');
                                 }
+                                if (newWorker.state === 'activated') {
+                                    // Nueva versión activada: refrescar el chip
+                                    actualizarChipVersion();
+                                }
                             });
                         });
                     })
                     .catch(function(err) {
                         console.warn('[PWA] Error registrando Service Worker:', err);
+                        var chipTextErr = document.getElementById('appVersionChipText');
+                        if (chipTextErr) chipTextErr.textContent = 'v?';
                     });
             });
+        } else {
+            // Navegador sin soporte SW: el chip queda en estado "v?"
+            var chipTextNoSw = document.getElementById('appVersionChipText');
+            if (chipTextNoSw) chipTextNoSw.textContent = 'v?';
+        }
+
+        /**
+         * Pide la versión al Service Worker activo vía MessageChannel
+         * y la muestra en el chip #appVersionChipText.
+         * Si no hay SW activo todavía (primera carga), reintenta con backoff.
+         */
+        function actualizarChipVersion(reintentos) {
+            reintentos = (typeof reintentos === 'number') ? reintentos : 6;
+            var chipText = document.getElementById('appVersionChipText');
+            if (!chipText) return; // el chip no está en el DOM (p.ej. pantalla de auth)
+
+            // Si aún no hay SW activo, reintentar con backoff
+            if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
+                if (reintentos > 0) {
+                    setTimeout(function() {
+                        actualizarChipVersion(reintentos - 1);
+                    }, 800);
+                } else {
+                    chipText.textContent = 'v?';
+                }
+                return;
+            }
+
+            var channel = new MessageChannel();
+            channel.port1.onmessage = function(event) {
+                if (event.data && event.data.version) {
+                    chipText.textContent = event.data.version;
+                    var chip = document.getElementById('appVersionChip');
+                    if (chip) chip.title = 'Versión de la aplicación: ' + event.data.version;
+                } else {
+                    chipText.textContent = 'v?';
+                }
+            };
+            channel.port1.onmessageerror = function() {
+                chipText.textContent = 'v?';
+            };
+            try {
+                navigator.serviceWorker.controller.postMessage(
+                    { type: 'GET_VERSION' },
+                    [channel.port2]
+                );
+            } catch (e) {
+                chipText.textContent = 'v?';
+            }
         }
     </script>
 
