@@ -57,7 +57,7 @@
  *         contain para que el scroll vertical se propague al body.
  */
 
-const CACHE_VERSION = 'v22';
+const CACHE_VERSION = 'v2.2';
 const CACHE_NAME = 'matriz-tec4-' + CACHE_VERSION;
 const CDN_CACHE_NAME = 'matriz-tec4-cdn-' + CACHE_VERSION;
 const APP_SHELL = [
