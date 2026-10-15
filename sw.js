@@ -55,9 +55,18 @@
  *         el dedo empezaba sobre una celda. Cambiado a pan-x pan-y en
  *         TODOS los contenedores scrollables. Eliminado overscroll-behavior:
  *         contain para que el scroll vertical se propague al body.
+ *
+ * Renumeración: a partir de aquí se usa versionado semántico (MAJOR.MINOR).
+ *   v2.2 — chip dinámico en index.html que muestra la versión real de la
+ *          app consultando al SW vía MessageChannel ({type:'GET_VERSION'}).
+ *          Renumerado desde v22 (historial anterior conservado).
+ *   v2.3 — FIX: cache.addAll(APP_SHELL) fallaba si faltaba algún asset
+ *          (manifest.json, iconos) → el SW nunca pasaba a 'activated' y
+ *          navigator.serviceWorker.controller quedaba null → el chip
+ *          acababa mostrando 'v?'. Cambiado a cacheo tolerante por URL.
  */
 
-const CACHE_VERSION = 'v2.2';
+const CACHE_VERSION = 'v2.3';
 const CACHE_NAME = 'matriz-tec4-' + CACHE_VERSION;
 const CDN_CACHE_NAME = 'matriz-tec4-cdn-' + CACHE_VERSION;
 const APP_SHELL = [
@@ -85,13 +94,28 @@ const CDN_ASSETS = [
 self.addEventListener('install', function(event) {
     event.waitUntil(
         Promise.all([
-            // Pre-cachear el app shell
+            // Pre-cachear el app shell (tolerante a 404: si falta algún
+            // asset como manifest.json o iconos, no se aborta el install).
             caches.open(CACHE_NAME).then(function(cache) {
-                return cache.addAll(APP_SHELL);
+                return Promise.allSettled(APP_SHELL.map(function(url) {
+                    return cache.add(url).then(
+                        function() { /* ok */ },
+                        function(err) {
+                            console.warn('[SW] No cacheado (404?):', url, err.message);
+                        }
+                    );
+                }));
             }),
-            // Pre-cachear los recursos de CDN
+            // Pre-cachear los recursos de CDN (también tolerante)
             caches.open(CDN_CACHE_NAME).then(function(cache) {
-                return cache.addAll(CDN_ASSETS);
+                return Promise.allSettled(CDN_ASSETS.map(function(url) {
+                    return cache.add(url).then(
+                        function() { /* ok */ },
+                        function(err) {
+                            console.warn('[SW] No cacheado CDN:', url, err.message);
+                        }
+                    );
+                }));
             })
         ]).then(function() {
             // Forzar activación inmediata
